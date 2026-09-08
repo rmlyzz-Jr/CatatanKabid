@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jadwal-splash-v1';
+const CACHE_NAME = 'jadwal-pembuka-v1';
 const ASSETS = [
   '.',
   'index.html',
@@ -7,7 +7,7 @@ const ASSETS = [
   'icon-512.png'
 ];
 
-// Install - cache splash assets saja
+// Install - cache asset halaman pembuka
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -16,7 +16,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate - bersihkan cache lama
+// Activate - bersihkan cache versi lama
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -28,15 +28,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch - hanya layani asset splash dari cache.
-// Permintaan ke script.google.com (aplikasi utama) TIDAK disentuh/di-cache,
-// dibiarkan lewat langsung ke jaringan seperti biasa.
+// Fetch - hanya layani asset halaman pembuka dari cache.
+// Permintaan ke domain lain (termasuk script.google.com saat tombol
+// "Buka Aplikasi" diklik) TIDAK disentuh/di-cache, dibiarkan lewat
+// langsung ke jaringan seperti biasa.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  if (url.hostname.includes('google.com') || url.hostname.includes('script.google.com')) {
-    return;
-  }
   if (url.origin !== self.location.origin) {
     return;
   }

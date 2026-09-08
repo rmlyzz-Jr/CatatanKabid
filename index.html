@@ -18,121 +18,158 @@
 
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body {
-    height: 100%;
-    font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  }
+  html, body { height: 100%; }
   body {
+    font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
     background: linear-gradient(135deg, #1e3a5f 0%, #2f6fed 100%);
     color: #fff;
+    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 24px;
+    padding-top: calc(24px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     text-align: center;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  .splash { max-width: 340px; }
-  .splash img {
-    width: 96px;
-    height: 96px;
-    border-radius: 22px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.25);
-    margin-bottom: 20px;
+  .card {
+    width: 100%;
+    max-width: 360px;
   }
-  h1 { font-size: 19px; font-weight: 700; margin-bottom: 4px; }
-  p.sub { font-size: 13px; opacity: .85; margin-bottom: 28px; }
-  .status { font-size: 12.5px; opacity: .8; min-height: 18px; margin-bottom: 20px; }
-  .btn-open {
-    display: inline-block;
-    background: #fff;
-    border: 1px solid rgba(255,255,255,0.35);
-    color: #1e3a5f;
-    padding: 13px 32px;
+  .card img {
+    width: 100px;
+    height: 100px;
     border-radius: 24px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.28);
+    margin-bottom: 22px;
+  }
+  h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    margin-bottom: 4px;
+  }
+  p.sub {
+    font-size: 13.5px;
+    opacity: .85;
+    margin-bottom: 34px;
+  }
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 20px;
+    border-radius: 26px;
     font-size: 15px;
     font-weight: 700;
     text-decoration: none;
-    transition: .2s;
-    box-shadow: 0 8px 20px rgba(0,0,0,.2);
-  }
-  .btn-open:hover { background: #eef1f7; transform: translateY(-1px); }
-  .btn-open:active { transform: translateY(0); }
-  .install-btn {
-    display: none;
-    margin-top: 12px;
-    background: transparent;
     border: none;
-    color: #fff;
-    font-size: 12.5px;
-    text-decoration: underline;
     cursor: pointer;
-    opacity: .85;
+    transition: .18s;
+    font-family: inherit;
   }
-  .install-btn.show { display: inline-block; }
+  .btn-primary {
+    background: #fff;
+    color: #1e3a5f;
+    box-shadow: 0 10px 26px rgba(0,0,0,.22);
+    margin-bottom: 12px;
+  }
+  .btn-primary:hover { background: #eef1f7; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-secondary {
+    background: rgba(255,255,255,0.14);
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.4);
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.24); }
+  .btn-secondary:disabled {
+    opacity: .55;
+    cursor: default;
+  }
+  .status {
+    font-size: 12.5px;
+    opacity: .85;
+    margin-top: 16px;
+    min-height: 16px;
+    line-height: 1.5;
+  }
 </style>
 </head>
 <body>
 
-<div class="splash">
+<div class="card">
   <img src="icon-512.png" alt="Jadwal Kegiatan">
   <h1>Jadwal Kegiatan</h1>
   <p class="sub">Kepala Bidang Bina Marga</p>
 
-  <a class="btn-open" id="openBtn" href="https://script.google.com/macros/s/AKfycbyd1lrkh2BYvIpRagMXvpxi8ouzgJ72IAT_oVajb9oASpqccCjdLpuObB_O5YEbbpaqLQ/exec">
+  <a class="btn btn-primary" id="openBtn" href="https://script.google.com/macros/s/AKfycbyd1lrkh2BYvIpRagMXvpxi8ouzgJ72IAT_oVajb9oASpqccCjdLpuObB_O5YEbbpaqLQ/exec">
     🚀 Buka Aplikasi
   </a>
+  <button class="btn btn-secondary" id="installBtn">📲 Instal Aplikasi</button>
+
   <div class="status" id="status"></div>
-  <button class="install-btn" id="installBtn">📲 Install ke Home Screen</button>
 </div>
 
 <script>
 // ============================================================
-// KONFIGURASI — GANTI DENGAN URL APLIKASI (APPS SCRIPT) KAMU!
+// KONFIGURASI — GANTI DENGAN URL WEB APP KAMU KALAU BERUBAH
 // ============================================================
 const APP_URL = 'https://script.google.com/macros/s/AKfycbyd1lrkh2BYvIpRagMXvpxi8ouzgJ72IAT_oVajb9oASpqccCjdLpuObB_O5YEbbpaqLQ/exec';
+document.getElementById('openBtn').href = APP_URL;
 
 // ============================================================
-// INSTALL PWA (splash ini yang jadi ikon di Home Screen)
+// TOMBOL INSTAL APLIKASI (PWA — splash ini yang jadi ikon Home Screen)
 // ============================================================
 let deferredPrompt;
 const installBtn = document.getElementById('installBtn');
+const statusEl = document.getElementById('status');
 
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches
-    || window.navigator.standalone === true;
+    || window.navigator.standalone === true; // iOS Safari
 }
 function isIOS() {
   return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 }
 
+if (isStandalone()) {
+  installBtn.style.display = 'none';
+}
+
+// Chrome/Edge/Android: browser mengirim event ini saat app memenuhi syarat install
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  if (!isStandalone()) installBtn.classList.add('show');
+});
+
+window.addEventListener('appinstalled', () => {
+  statusEl.textContent = 'Aplikasi berhasil diinstal! 🎉';
+  installBtn.style.display = 'none';
+  deferredPrompt = null;
 });
 
 installBtn.addEventListener('click', async () => {
   if (deferredPrompt) {
+    // Alur normal Chrome/Edge/Android
     deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
+    const result = await deferredPrompt.userChoice;
+    if (result.outcome === 'accepted') {
+      statusEl.textContent = 'Aplikasi berhasil diinstal! 🎉';
+    }
     deferredPrompt = null;
-    installBtn.classList.remove('show');
   } else if (isIOS()) {
-    document.getElementById('status').textContent =
-      'Di iPhone/iPad: tap ikon Share (□↑), lalu "Add to Home Screen"';
+    // iOS Safari tidak punya prompt otomatis
+    statusEl.textContent = 'Di iPhone/iPad: tap ikon Share (□↑) di bawah, lalu pilih "Add to Home Screen".';
   } else {
-    document.getElementById('status').textContent =
-      'Gunakan menu browser (⋮) lalu "Install app" / "Add to Home screen"';
+    statusEl.textContent = 'Gunakan menu browser (⋮) lalu pilih "Install app" / "Add to Home screen".';
   }
 });
 
-if (isIOS() && !isStandalone()) {
-  installBtn.classList.add('show');
-}
-
-// Service Worker (agar splash bisa diinstall & dibuka offline sebentar sebelum redirect)
+// ============================================================
+// SERVICE WORKER (agar halaman ini bisa diinstal & tampil offline)
+// ============================================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('sw.js').catch(function(err) {
