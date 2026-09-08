@@ -83,6 +83,56 @@
   }
   .install-btn:hover { background: rgba(255,255,255,0.3); }
   .install-btn.show { display: inline-flex; }
+  .user-chip {
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(255,255,255,0.15);
+    padding: 6px 12px;
+    border-radius: 20px;
+  }
+  .logout-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: .2s;
+  }
+  .logout-btn:hover { background: rgba(255,255,255,0.3); }
+
+  /* ===== LOGIN SCREEN ===== */
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--blue) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 500;
+  }
+  .login-box {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: 0 12px 40px rgba(0,0,0,.25);
+    padding: 32px 26px;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+  }
+  .login-logo { font-size: 40px; margin-bottom: 6px; }
+  .login-box h1 { font-size: 18px; color: var(--navy-dark); margin-bottom: 2px; }
+  .login-box p { font-size: 12.5px; color: var(--muted); margin-bottom: 20px; }
+  .login-box .field { text-align: left; margin-bottom: 12px; }
+  .login-msg {
+    font-size: 12.5px;
+    color: var(--red);
+    margin-top: 10px;
+    min-height: 16px;
+  }
 
   /* ===== TABS ===== */
   .tabs {
@@ -505,6 +555,30 @@
 </head>
 <body>
 
+<!-- ===== LOGIN SCREEN ===== -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">📋</div>
+    <h1>Jadwal Kegiatan</h1>
+    <p>Kepala Bidang Bina Marga</p>
+    <form id="formLogin">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="l-username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="l-password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" id="btnLogin">🔑 Masuk</button>
+      <div class="login-msg" id="loginMsg"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== APP (tersembunyi sampai login berhasil) ===== -->
+<div id="appRoot" style="display:none;">
+
 <!-- ===== HEADER ===== -->
 <header>
   <div class="header-inner">
@@ -513,14 +587,16 @@
       <p>Kepala Bidang Bina Marga</p>
     </div>
     <div class="header-right">
+      <span class="user-chip" id="userChip"></span>
       <button class="install-btn" id="installBtn">📲 Install</button>
+      <button class="logout-btn" id="logoutBtn" title="Keluar">⏻</button>
     </div>
   </div>
 </header>
 
 <!-- ===== TABS ===== -->
 <div class="tabs">
-  <button class="tab-btn active" data-tab="input">➕ Input Kegiatan</button>
+  <button class="tab-btn active" data-tab="input" id="tabBtnInput">➕ Input Kegiatan</button>
   <button class="tab-btn" data-tab="jadwal">🗓️ Jadwal Kegiatan</button>
 </div>
 
@@ -688,6 +764,8 @@
   </div>
 </div>
 
+</div> <!-- /#appRoot -->
+
 <!-- ============================================================ -->
 <!-- ===== JAVASCRIPT ===== -->
 <script>
@@ -704,6 +782,105 @@ let allJadwal = [];
 let currentViewDate = new Date();
 let selectedDate = new Date();
 selectedDate.setHours(0,0,0,0);
+
+// ============================================================
+// SESI LOGIN
+// ============================================================
+const SESSION_KEY = 'jadwal_session';
+let currentUser = null; // { username, password, role }
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveSession(user) {
+  currentUser = user;
+  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+}
+
+function clearSession() {
+  currentUser = null;
+  localStorage.removeItem(SESSION_KEY);
+}
+
+// Disertakan di setiap request yang mengubah data (tambah/update/hapus/updateStatus)
+function authPayload() {
+  return currentUser ? { username: currentUser.username, password: currentUser.password } : {};
+}
+
+function applyRoleUI() {
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const tabBtnInput = document.getElementById('tabBtnInput');
+  if (tabBtnInput) tabBtnInput.style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) {
+    // Staff: paksa ke tab jadwal (read-only)
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="jadwal"]').classList.add('active');
+    document.getElementById('tab-jadwal').classList.add('active');
+  }
+}
+
+function showApp() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('appRoot').style.display = '';
+  document.getElementById('userChip').textContent =
+    '👤 ' + currentUser.username + ' (' + currentUser.role + ')';
+  applyRoleUI();
+  loadJadwal();
+}
+
+function showLogin(message) {
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('loginMsg').textContent = message || '';
+}
+
+async function apiLogin(username, password) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'login', username, password })
+  });
+  return res.json();
+}
+
+document.getElementById('formLogin').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnLogin');
+  const msg = document.getElementById('loginMsg');
+  const username = document.getElementById('l-username').value.trim();
+  const password = document.getElementById('l-password').value;
+
+  btn.disabled = true;
+  btn.textContent = 'Memeriksa...';
+  msg.textContent = '';
+
+  try {
+    const res = await apiLogin(username, password);
+    if (res.success) {
+      saveSession({ username: res.username, password, role: res.role });
+      document.getElementById('formLogin').reset();
+      showApp();
+    } else {
+      msg.textContent = res.message || 'Login gagal.';
+    }
+  } catch (err) {
+    msg.textContent = 'Gagal terhubung ke server: ' + err.message;
+  }
+  btn.disabled = false;
+  btn.textContent = '🔑 Masuk';
+});
+
+document.getElementById('logoutBtn').addEventListener('click', function() {
+  if (!confirm('Keluar dari aplikasi?')) return;
+  clearSession();
+  showLogin('');
+});
 
 // ============================================================
 // FUNGSI BANTUAN
@@ -752,7 +929,7 @@ async function apiGetJadwal() {
 async function apiTambah(data) {
   const res = await fetch(API_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'tambah', ...data })
+    body: JSON.stringify({ action: 'tambah', ...data, ...authPayload() })
   });
   return res.json();
 }
@@ -760,7 +937,7 @@ async function apiTambah(data) {
 async function apiUpdate(rowIndex, data) {
   const res = await fetch(API_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'update', rowIndex, ...data })
+    body: JSON.stringify({ action: 'update', rowIndex, ...data, ...authPayload() })
   });
   return res.json();
 }
@@ -768,7 +945,7 @@ async function apiUpdate(rowIndex, data) {
 async function apiHapus(rowIndex) {
   const res = await fetch(API_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'hapus', rowIndex })
+    body: JSON.stringify({ action: 'hapus', rowIndex, ...authPayload() })
   });
   return res.json();
 }
@@ -776,7 +953,7 @@ async function apiHapus(rowIndex) {
 async function apiUpdateStatus(rowIndex, status) {
   const res = await fetch(API_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'updateStatus', rowIndex, status })
+    body: JSON.stringify({ action: 'updateStatus', rowIndex, status, ...authPayload() })
   });
   return res.json();
 }
@@ -994,25 +1171,27 @@ function renderEventsForSelectedDate() {
 
 function renderEventCard(j) {
   const sc = statusClass(j.status);
+  const isAdmin = currentUser && currentUser.role === 'admin';
   return `
   <div class="event-card status-${sc}">
     <div class="event-top">
       <div class="event-time">${j.jamMulai || '--:--'} – ${j.jamSelesai || '--:--'}</div>
       <span class="badge badge-${sc}">${j.status || 'Terjadwal'}</span>
     </div>
-    <div class="event-title" data-view-row="${j.rowIndex}" title="Klik untuk lihat & edit detail">
-      ${escapeHtml(j.kegiatan)} <span class="hint-icon">✎</span>
+    <div class="event-title" data-view-row="${j.rowIndex}" title="${isAdmin ? 'Klik untuk lihat & edit detail' : 'Klik untuk lihat detail'}">
+      ${escapeHtml(j.kegiatan)} <span class="hint-icon">${isAdmin ? '✎' : '👁️'}</span>
     </div>
     <div class="event-meta">🏷️ <b>${escapeHtml(j.kategori || '-')}</b></div>
     ${j.lokasi ? `<div class="event-meta">📍 ${escapeHtml(j.lokasi)}</div>` : ''}
     ${j.dispo ? `<div class="event-meta">➡️ Dispo: <b>${escapeHtml(j.dispo)}</b></div>` : ''}
     ${j.catatan ? `<div class="event-meta">📝 ${escapeHtml(j.catatan)}</div>` : ''}
+    ${isAdmin ? `
     <div class="event-actions">
       <select data-status-row="${j.rowIndex}">
         ${['Terjadwal','Berlangsung','Selesai','Ditunda','Dibatalkan'].map(s => `<option ${s === j.status ? 'selected' : ''}>${s}</option>`).join('')}
       </select>
       <button type="button" class="btn btn-danger" data-delete-row="${j.rowIndex}">🗑️ Hapus</button>
-    </div>
+    </div>` : ''}
   </div>`;
 }
 
@@ -1048,9 +1227,14 @@ function openEditModal(rowIndex) {
   document.getElementById('e-dispo').value = item.dispo || '';
   document.getElementById('e-catatan').value = item.catatan || '';
 
+  const isAdmin = currentUser && currentUser.role === 'admin';
   const btnUpdate = document.getElementById('btnUpdateModal');
   btnUpdate.disabled = false;
   btnUpdate.textContent = '💾 Update';
+  btnUpdate.style.display = isAdmin ? '' : 'none';
+
+  document.querySelectorAll('#formEdit input, #formEdit select, #formEdit textarea')
+    .forEach(el => { el.disabled = !isAdmin; });
 
   modalOverlay.classList.add('show');
 }
@@ -1166,9 +1350,15 @@ if (isIOS() && !isStandalone()) {
 // ============================================================
 // INISIALISASI
 // ============================================================
-setTimeout(() => {
-  loadJadwal();
-}, 500);
+(function initSession() {
+  const saved = loadSession();
+  if (saved && saved.username && saved.password) {
+    currentUser = saved;
+    showApp();
+  } else {
+    showLogin('');
+  }
+})();
 
 // Service Worker
 if ('serviceWorker' in navigator) {
