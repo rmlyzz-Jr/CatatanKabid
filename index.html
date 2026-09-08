@@ -4,17 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jadwal Kegiatan Kabid Bina Marga</title>
-
-<!-- ============ PWA META TAGS ============ -->
-<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e3a5f">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Jadwal Kegiatan">
-<link rel="apple-touch-icon" href="icon-512.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
 <!-- ============ STYLE ============ -->
 <style>
@@ -588,7 +578,6 @@
     </div>
     <div class="header-right">
       <span class="user-chip" id="userChip"></span>
-      <button class="install-btn" id="installBtn">📲 Install</button>
       <button class="logout-btn" id="logoutBtn" title="Keluar">⏻</button>
     </div>
   </div>
@@ -772,8 +761,18 @@
 // ============================================================
 // KONFIGURASI
 // ============================================================
-// GANTI DENGAN URL WEB APP ANDA!
-const API_URL = 'https://script.google.com/macros/s/AKfycbwFsYRcnpaR1blbra8GSaVC87YECeiR3nENx1r-QgNNPGSzYXc19K8HSfPDAqh54wlAXw/exec';
+// Tidak perlu API_URL -- semua panggilan ke backend memakai
+// google.script.run langsung ke fungsi di Code.gs (satu project, satu deployment).
+
+// Helper: bungkus google.script.run jadi Promise
+function gsRun(fnName, ...args) {
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler((err) => reject(err))
+      [fnName](...args);
+  });
+}
 
 const HARI_NAMA = ['Minggu','Senin','Selasa','Rabu','Kamis',"Jum'at",'Sabtu'];
 const BULAN_NAMA = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -842,11 +841,7 @@ function showLogin(message) {
 }
 
 async function apiLogin(username, password) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'login', username, password })
-  });
-  return res.json();
+  return gsRun('login', username, password);
 }
 
 document.getElementById('formLogin').addEventListener('submit', async function(e) {
@@ -922,40 +917,23 @@ function statusClass(status) {
 // API CALLS
 // ============================================================
 async function apiGetJadwal() {
-  const res = await fetch(API_URL + '?action=getJadwal');
-  return res.json();
+  return gsRun('getJadwal');
 }
 
 async function apiTambah(data) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'tambah', ...data, ...authPayload() })
-  });
-  return res.json();
+  return gsRun('tambahJadwal', { ...data, ...authPayload() });
 }
 
 async function apiUpdate(rowIndex, data) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'update', rowIndex, ...data, ...authPayload() })
-  });
-  return res.json();
+  return gsRun('updateJadwal', rowIndex, { ...data, ...authPayload() });
 }
 
 async function apiHapus(rowIndex) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'hapus', rowIndex, ...authPayload() })
-  });
-  return res.json();
+  return gsRun('hapusJadwal', rowIndex, authPayload());
 }
 
 async function apiUpdateStatus(rowIndex, status) {
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action: 'updateStatus', rowIndex, status, ...authPayload() })
-  });
-  return res.json();
+  return gsRun('updateStatus', rowIndex, status, authPayload());
 }
 
 // ============================================================
@@ -1294,60 +1272,6 @@ document.getElementById('btnUpdateModal').addEventListener('click', async functi
 });
 
 // ============================================================
-// INSTALL PWA
-// ============================================================
-let deferredPrompt;
-const installBtn = document.getElementById('installBtn');
-
-// Deteksi apakah sudah berjalan dalam mode standalone (sudah terinstall)
-function isStandalone() {
-  return window.matchMedia('(display-mode: standalone)').matches
-    || window.navigator.standalone === true; // iOS Safari
-}
-
-// Deteksi iOS (Safari tidak mendukung beforeinstallprompt)
-function isIOS() {
-  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
-}
-
-// Chrome/Edge/Android: event ini tersedia saat app memenuhi syarat install
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  if (!isStandalone()) installBtn.classList.add('show');
-});
-
-// Klik tombol install — listener didaftarkan sekali saja di luar event di atas
-installBtn.addEventListener('click', async () => {
-  if (deferredPrompt) {
-    // Alur normal Chrome/Edge/Android
-    deferredPrompt.prompt();
-    const result = await deferredPrompt.userChoice;
-    if (result.outcome === 'accepted') {
-      showToast('Aplikasi berhasil diinstall! 🎉');
-    }
-    deferredPrompt = null;
-    installBtn.classList.remove('show');
-  } else if (isIOS()) {
-    // iOS Safari tidak punya prompt otomatis, tampilkan instruksi manual
-    showToast('Di iPhone/iPad: tap ikon Share (□↑), lalu pilih "Add to Home Screen"', 6000);
-  } else {
-    showToast('Gunakan menu browser (⋮) lalu pilih "Install app" / "Add to Home screen"', 6000);
-  }
-});
-
-window.addEventListener('appinstalled', () => {
-  showToast('Aplikasi berhasil diinstall! 🎉');
-  installBtn.classList.remove('show');
-  deferredPrompt = null;
-});
-
-// Tampilkan tombol install untuk iOS juga (karena beforeinstallprompt tidak akan pernah muncul di sana)
-if (isIOS() && !isStandalone()) {
-  installBtn.classList.add('show');
-}
-
-// ============================================================
 // INISIALISASI
 // ============================================================
 (function initSession() {
@@ -1359,19 +1283,6 @@ if (isIOS() && !isStandalone()) {
     showLogin('');
   }
 })();
-
-// Service Worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    try {
-      navigator.serviceWorker.register('sw.js').catch(function(err) {
-        console.warn('Service worker gagal didaftarkan:', err);
-      });
-    } catch (err) {
-      console.warn('Service worker tidak didukung di lingkungan ini:', err);
-    }
-  });
-}
 </script>
 </body>
 </html>
